@@ -49,3 +49,7 @@ export function generateAuthTokens(payload) {
 export function verifyRefreshToken(token) {
   return jwt.verify(token, refreshTokenSecret);
 }
+
+export function verifyAccessToken(token) {
+  return jwt.verify(token, accessTokenSecret);
+}
