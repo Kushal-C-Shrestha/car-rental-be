@@ -46,6 +46,7 @@ function formatReview(review) {
     id: review.id,
     rating: review.rating,
     comment: review.comment,
+    deletedAt: review.deletedAt,
     createdAt: review.createdAt,
     user: review.user,
     vehicle: review.vehicle
@@ -86,6 +87,7 @@ export async function getVehicleReviews(slug) {
   const reviews = await prisma.review.findMany({
     where: {
       vehicleId: vehicle.id,
+      deletedAt: null,
     },
     include: {
       user: {
@@ -190,6 +192,42 @@ export async function createVehicleReview(slug, payload) {
     body: {
       message: "Review created successfully",
       data: formatReview(review),
+    },
+  };
+}
+
+export async function getUserReviews(userId) {
+  const reviews = await prisma.review.findMany({
+    where: {
+      userId,
+      deletedAt: null,
+    },
+    include: {
+      user: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+      vehicle: {
+        select: {
+          id: true,
+          slug: true,
+          name: true,
+        },
+      },
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+  });
+
+  return {
+    ok: true,
+    statusCode: 200,
+    body: {
+      message: "Your reviews fetched successfully",
+      data: reviews.map(formatReview),
     },
   };
 }

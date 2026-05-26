@@ -1,5 +1,6 @@
 import {
   createVehicleReview,
+  getUserReviews,
   getVehicleReviews,
 } from "../services/reviewService.js";
 
@@ -16,6 +17,16 @@ export async function listVehicleReviews(req, res, next) {
 export async function createReview(req, res, next) {
   try {
     const result = await createVehicleReview(req.params.slug, req.body);
+
+    return res.status(result.statusCode).json(result.body);
+  } catch (error) {
+    return next(error);
+  }
+}
+
+export async function listMyReviews(req, res, next) {
+  try {
+    const result = await getUserReviews(req.user.userId);
 
     return res.status(result.statusCode).json(result.body);
   } catch (error) {
