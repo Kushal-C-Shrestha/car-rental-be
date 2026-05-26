@@ -3,6 +3,7 @@ import cors from "cors";
 import express from "express";
 import morgan from "morgan";
 import { authRoutes } from "./routes/authRoutes.js";
+import { bookingRoutes } from "./routes/bookingRoutes.js";
 import { vehicleRoutes } from "./routes/vehicleRoutes.js";
 
 const app = express();
@@ -26,6 +27,7 @@ app.get("/health", (_req, res) => {
 
 app.use("/api/auth", authRoutes);
 app.use("/api/vehicles", vehicleRoutes);
+app.use("/api/bookings", bookingRoutes);
 
 app.use((req, res) => {
   res.status(404).json({
