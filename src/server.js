@@ -3,6 +3,7 @@ import cors from "cors";
 import express from "express";
 import morgan from "morgan";
 import { authRoutes } from "./routes/authRoutes.js";
+import { vehicleRoutes } from "./routes/vehicleRoutes.js";
 
 const app = express();
 const port = process.env.PORT || 4000;
@@ -24,6 +25,7 @@ app.get("/health", (_req, res) => {
 });
 
 app.use("/api/auth", authRoutes);
+app.use("/api/vehicles", vehicleRoutes);
 
 app.use((req, res) => {
   res.status(404).json({
