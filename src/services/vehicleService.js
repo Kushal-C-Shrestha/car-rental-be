@@ -16,6 +16,9 @@ function formatVehicle(vehicle) {
 const vehicleInclude = {
   category: true,
   reviews: {
+    where: {
+      deletedAt: null,
+    },
     select: {
       id: true,
       rating: true,

@@ -17,14 +17,8 @@ function validationError(errors) {
   };
 }
 
-function validateReviewPayload({ userId, rating, comment }) {
+function validateReviewPayload({ rating, comment }) {
   const errors = {};
-
-  if (!userId) {
-    errors.userId = "User id is required";
-  } else if (typeof userId !== "string") {
-    errors.userId = "User id must be a string";
-  }
 
   if (rating === undefined || rating === null) {
     errors.rating = "Rating is required";
@@ -32,6 +26,28 @@ function validateReviewPayload({ userId, rating, comment }) {
     errors.rating = "Rating must be a whole number";
   } else if (rating < 1 || rating > 5) {
     errors.rating = "Rating must be between 1 and 5";
+  }
+
+  if (comment !== undefined && comment !== null && typeof comment !== "string") {
+    errors.comment = "Comment must be a string";
+  }
+
+  return validationError(errors);
+}
+
+function validateReviewUpdatePayload({ rating, comment }) {
+  const errors = {};
+
+  if (rating === undefined && comment === undefined) {
+    errors.review = "Rating or comment is required";
+  }
+
+  if (rating !== undefined) {
+    if (!Number.isInteger(rating)) {
+      errors.rating = "Rating must be a whole number";
+    } else if (rating < 1 || rating > 5) {
+      errors.rating = "Rating must be between 1 and 5";
+    }
   }
 
   if (comment !== undefined && comment !== null && typeof comment !== "string") {
@@ -127,7 +143,7 @@ export async function getVehicleReviews(slug) {
   };
 }
 
-export async function createVehicleReview(slug, payload) {
+export async function createVehicleReview(userId, slug, payload) {
   const validation = validateReviewPayload(payload);
 
   if (!validation.ok) {
@@ -148,7 +164,7 @@ export async function createVehicleReview(slug, payload) {
 
   const user = await prisma.user.findUnique({
     where: {
-      id: payload.userId,
+      id: userId,
     },
   });
 
@@ -228,6 +244,120 @@ export async function getUserReviews(userId) {
     body: {
       message: "Your reviews fetched successfully",
       data: reviews.map(formatReview),
+    },
+  };
+}
+
+export async function updateUserReview(userId, reviewId, payload) {
+  const validation = validateReviewUpdatePayload(payload);
+
+  if (!validation.ok) {
+    return validation;
+  }
+
+  const review = await prisma.review.findFirst({
+    where: {
+      id: reviewId,
+      userId,
+      deletedAt: null,
+    },
+  });
+
+  if (!review) {
+    return {
+      ok: false,
+      statusCode: 404,
+      body: {
+        message: "Review not found",
+      },
+    };
+  }
+
+  const updatedReview = await prisma.review.update({
+    where: {
+      id: review.id,
+    },
+    data: {
+      rating: payload.rating ?? review.rating,
+      comment:
+        payload.comment === undefined ? review.comment : payload.comment?.trim() || null,
+    },
+    include: {
+      user: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+      vehicle: {
+        select: {
+          id: true,
+          slug: true,
+          name: true,
+        },
+      },
+    },
+  });
+
+  return {
+    ok: true,
+    statusCode: 200,
+    body: {
+      message: "Review updated successfully",
+      data: formatReview(updatedReview),
+    },
+  };
+}
+
+export async function softDeleteUserReview(userId, reviewId) {
+  const review = await prisma.review.findFirst({
+    where: {
+      id: reviewId,
+      userId,
+      deletedAt: null,
+    },
+  });
+
+  if (!review) {
+    return {
+      ok: false,
+      statusCode: 404,
+      body: {
+        message: "Review not found",
+      },
+    };
+  }
+
+  const deletedReview = await prisma.review.update({
+    where: {
+      id: review.id,
+    },
+    data: {
+      deletedAt: new Date(),
+    },
+    include: {
+      user: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+      vehicle: {
+        select: {
+          id: true,
+          slug: true,
+          name: true,
+        },
+      },
+    },
+  });
+
+  return {
+    ok: true,
+    statusCode: 200,
+    body: {
+      message: "Review deleted successfully",
+      data: formatReview(deletedReview),
     },
   };
 }
