@@ -20,7 +20,6 @@ function validationError(errors) {
 function validateBookingPayload(payload) {
   const errors = {};
   const {
-    userId,
     vehicleId,
     vehicleSlug,
     pickupLocationId,
@@ -28,12 +27,6 @@ function validateBookingPayload(payload) {
     pickupAt,
     dropoffAt,
   } = payload;
-
-  if (!userId) {
-    errors.userId = "User id is required";
-  } else if (typeof userId !== "string") {
-    errors.userId = "User id must be a string";
-  }
 
   if (!vehicleId && !vehicleSlug) {
     errors.vehicle = "Vehicle id or vehicle slug is required";
@@ -104,7 +97,21 @@ function calculateTotalAmount(pricePerDay, pickupAt, dropoffAt) {
   return Number(pricePerDay) * days;
 }
 
-export async function createBookingAppointment(payload) {
+const bookingInclude = {
+  user: {
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      phone: true,
+    },
+  },
+  vehicle: true,
+  pickupLocation: true,
+  dropoffLocation: true,
+};
+
+export async function createBookingAppointment(userId, payload) {
   const validation = validateBookingPayload(payload);
 
   if (!validation.ok) {
@@ -112,7 +119,6 @@ export async function createBookingAppointment(payload) {
   }
 
   const {
-    userId,
     vehicleId,
     vehicleSlug,
     pickupLocationId,
@@ -210,19 +216,7 @@ export async function createBookingAppointment(payload) {
       totalAmount,
       note: typeof note === "string" ? note.trim() : null,
     },
-    include: {
-      user: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          phone: true,
-        },
-      },
-      vehicle: true,
-      pickupLocation: true,
-      dropoffLocation: true,
-    },
+    include: bookingInclude,
   });
 
   return {
@@ -231,6 +225,27 @@ export async function createBookingAppointment(payload) {
     body: {
       message: "Booking appointment created successfully",
       data: formatBooking(booking),
+    },
+  };
+}
+
+export async function getUserAppointments(userId) {
+  const bookings = await prisma.booking.findMany({
+    where: {
+      userId,
+    },
+    include: bookingInclude,
+    orderBy: {
+      pickupAt: "desc",
+    },
+  });
+
+  return {
+    ok: true,
+    statusCode: 200,
+    body: {
+      message: "Appointments fetched successfully",
+      data: bookings.map(formatBooking),
     },
   };
 }
