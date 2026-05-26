@@ -1,3 +1,5 @@
+import { prisma } from "../lib/prisma.js";
+import { hashPassword, verifyPassword } from "../utils/password.js";
 import { generateAuthTokens } from "../utils/token.js";
 
 function validationError(errors) {
@@ -67,7 +69,28 @@ function validateLoginPayload({ email, password }) {
   return validationError(errors);
 }
 
-export function registerUser(payload) {
+function sanitizeUser(user) {
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    phone: user.phone,
+    role: user.role,
+    createdAt: user.createdAt,
+  };
+}
+
+async function createRefreshToken(userId, refreshToken, expiresAt) {
+  await prisma.refreshToken.create({
+    data: {
+      token: refreshToken,
+      userId,
+      expiresAt,
+    },
+  });
+}
+
+export async function registerUser(payload) {
   const { name, email, password } = payload;
   const validation = validateRegisterPayload({ name, email, password });
 
@@ -75,28 +98,60 @@ export function registerUser(payload) {
     return validation;
   }
 
-  console.log("Register payload:", {
-    name,
-    email,
-    password,
+  const normalizedEmail = email.trim().toLowerCase();
+  const existingUser = await prisma.user.findUnique({
+    where: {
+      email: normalizedEmail,
+    },
+  });
+
+  if (existingUser) {
+    return {
+      ok: false,
+      statusCode: 409,
+      body: {
+        message: "User with this email already exists",
+      },
+    };
+  }
+
+  const user = await prisma.user.create({
+    data: {
+      name: name.trim(),
+      email: normalizedEmail,
+      password: hashPassword(password),
+    },
   });
 
   const tokens = generateAuthTokens({
-    email,
-    name,
+    userId: user.id,
+    email: user.email,
+    role: user.role,
   });
+
+  await createRefreshToken(
+    user.id,
+    tokens.refreshToken,
+    tokens.refreshTokenExpiresAt,
+  );
 
   return {
     ok: true,
-    statusCode: 200,
+    statusCode: 201,
     body: {
-      message: "Register data received",
-      tokens,
+      message: "Registered successfully",
+      data: {
+        user: sanitizeUser(user),
+        tokens: {
+          accessToken: tokens.accessToken,
+          refreshToken: tokens.refreshToken,
+        },
+      },
     },
   };
 }
 
-export function loginUser(payload) {
+export async function loginUser(payload) {
   const { email, password } = payload;
   const validation = validateLoginPayload({ email, password });
 
@@ -104,21 +159,47 @@ export function loginUser(payload) {
     return validation;
   }
 
-  console.log("Login payload:", {
-    email,
-    password,
+  const normalizedEmail = email.trim().toLowerCase();
+  const user = await prisma.user.findUnique({
+    where: {
+      email: normalizedEmail,
+    },
   });
 
+  if (!user || !verifyPassword(password, user.password)) {
+    return {
+      ok: false,
+      statusCode: 401,
+      body: {
+        message: "Invalid email or password",
+      },
+    };
+  }
+
   const tokens = generateAuthTokens({
-    email,
+    userId: user.id,
+    email: user.email,
+    role: user.role,
   });
+
+  await createRefreshToken(
+    user.id,
+    tokens.refreshToken,
+    tokens.refreshTokenExpiresAt,
+  );
 
   return {
     ok: true,
     statusCode: 200,
     body: {
-      message: "Login data received",
-      tokens,
+      message: "Logged in successfully",
+      data: {
+        user: sanitizeUser(user),
+        tokens: {
+          accessToken: tokens.accessToken,
+          refreshToken: tokens.refreshToken,
+        },
+      },
     },
   };
 }
