@@ -45,6 +45,26 @@ function validateRegisterPayload({ name, email, password }) {
   return validationError(errors);
 }
 
+function validateLoginPayload({ email, password }) {
+  const errors = {};
+
+  if (!email) {
+    errors.email = "Email is required";
+  } else if (typeof email !== "string") {
+    errors.email = "Email must be a string";
+  } else if (!email.includes("@")) {
+    errors.email = "Email must be valid";
+  }
+
+  if (!password) {
+    errors.password = "Password is required";
+  } else if (typeof password !== "string") {
+    errors.password = "Password must be a string";
+  }
+
+  return validationError(errors);
+}
+
 export function registerUser(payload) {
   const { name, email, password } = payload;
   const validation = validateRegisterPayload({ name, email, password });
@@ -64,6 +84,28 @@ export function registerUser(payload) {
     statusCode: 200,
     body: {
       message: "Register data received",
+    },
+  };
+}
+
+export function loginUser(payload) {
+  const { email, password } = payload;
+  const validation = validateLoginPayload({ email, password });
+
+  if (!validation.ok) {
+    return validation;
+  }
+
+  console.log("Login payload:", {
+    email,
+    password,
+  });
+
+  return {
+    ok: true,
+    statusCode: 200,
+    body: {
+      message: "Login data received",
     },
   };
 }
