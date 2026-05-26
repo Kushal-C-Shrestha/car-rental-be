@@ -1,3 +1,5 @@
+import { generateAuthTokens } from "../utils/token.js";
+
 function validationError(errors) {
   if (Object.keys(errors).length > 0) {
     return {
@@ -79,11 +81,17 @@ export function registerUser(payload) {
     password,
   });
 
+  const tokens = generateAuthTokens({
+    email,
+    name,
+  });
+
   return {
     ok: true,
     statusCode: 200,
     body: {
       message: "Register data received",
+      tokens,
     },
   };
 }
@@ -101,11 +109,16 @@ export function loginUser(payload) {
     password,
   });
 
+  const tokens = generateAuthTokens({
+    email,
+  });
+
   return {
     ok: true,
     statusCode: 200,
     body: {
       message: "Login data received",
+      tokens,
     },
   };
 }
