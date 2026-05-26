@@ -1,6 +1,6 @@
 import { prisma } from "../lib/prisma.js";
 import { hashPassword, verifyPassword } from "../utils/password.js";
-import { generateAuthTokens } from "../utils/token.js";
+import { generateAuthTokens, verifyRefreshToken } from "../utils/token.js";
 
 function validationError(errors) {
   if (Object.keys(errors).length > 0) {
@@ -90,6 +90,24 @@ async function createRefreshToken(userId, refreshToken, expiresAt) {
   });
 }
 
+function authResponse(message, statusCode, user, tokens) {
+  return {
+    ok: true,
+    statusCode,
+    refreshToken: tokens.refreshToken,
+    refreshTokenExpiresAt: tokens.refreshTokenExpiresAt,
+    body: {
+      message,
+      data: {
+        user: sanitizeUser(user),
+        tokens: {
+          accessToken: tokens.accessToken,
+        },
+      },
+    },
+  };
+}
+
 export async function registerUser(payload) {
   const { name, email, password } = payload;
   const validation = validateRegisterPayload({ name, email, password });
@@ -135,20 +153,7 @@ export async function registerUser(payload) {
     tokens.refreshTokenExpiresAt,
   );
 
-  return {
-    ok: true,
-    statusCode: 201,
-    body: {
-      message: "Registered successfully",
-      data: {
-        user: sanitizeUser(user),
-        tokens: {
-          accessToken: tokens.accessToken,
-          refreshToken: tokens.refreshToken,
-        },
-      },
-    },
-  };
+  return authResponse("Registered successfully", 201, user, tokens);
 }
 
 export async function loginUser(payload) {
@@ -188,18 +193,77 @@ export async function loginUser(payload) {
     tokens.refreshTokenExpiresAt,
   );
 
-  return {
-    ok: true,
-    statusCode: 200,
-    body: {
-      message: "Logged in successfully",
-      data: {
-        user: sanitizeUser(user),
-        tokens: {
-          accessToken: tokens.accessToken,
-          refreshToken: tokens.refreshToken,
-        },
+  return authResponse("Logged in successfully", 200, user, tokens);
+}
+
+export async function refreshAuthToken(refreshToken) {
+  if (!refreshToken) {
+    return {
+      ok: false,
+      statusCode: 401,
+      body: {
+        message: "Refresh token is required",
       },
-    },
-  };
+    };
+  }
+
+  try {
+    verifyRefreshToken(refreshToken);
+  } catch (_error) {
+    return {
+      ok: false,
+      statusCode: 401,
+      body: {
+        message: "Invalid or expired refresh token",
+      },
+    };
+  }
+
+  return prisma.$transaction(async (tx) => {
+    const storedToken = await tx.refreshToken.findUnique({
+      where: {
+        token: refreshToken,
+      },
+      include: {
+        user: true,
+      },
+    });
+
+    if (!storedToken || storedToken.expiresAt <= new Date()) {
+      return {
+        ok: false,
+        statusCode: 401,
+        body: {
+          message: "Refresh token is invalid",
+        },
+      };
+    }
+
+    const tokens = generateAuthTokens({
+      userId: storedToken.user.id,
+      email: storedToken.user.email,
+      role: storedToken.user.role,
+    });
+
+    await tx.refreshToken.delete({
+      where: {
+        id: storedToken.id,
+      },
+    });
+
+    await tx.refreshToken.create({
+      data: {
+        token: tokens.refreshToken,
+        userId: storedToken.user.id,
+        expiresAt: tokens.refreshTokenExpiresAt,
+      },
+    });
+
+    return authResponse(
+      "Token refreshed successfully",
+      200,
+      storedToken.user,
+      tokens,
+    );
+  });
 }

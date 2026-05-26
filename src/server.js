@@ -1,4 +1,5 @@
 import "dotenv/config";
+import cookieParser from "cookie-parser";
 import cors from "cors";
 import express from "express";
 import morgan from "morgan";
@@ -13,8 +14,10 @@ const frontendOrigin = process.env.FRONTEND_ORIGIN || "http://localhost:3001";
 app.use(
   cors({
     origin: frontendOrigin,
+    credentials: true,
   }),
 );
+app.use(cookieParser());
 app.use(express.json());
 app.use(morgan("dev"));
 

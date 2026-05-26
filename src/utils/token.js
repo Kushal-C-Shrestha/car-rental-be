@@ -45,3 +45,7 @@ export function generateAuthTokens(payload) {
     refreshTokenExpiresAt: getExpiresAt(refreshTokenExpiresIn),
   };
 }
+
+export function verifyRefreshToken(token) {
+  return jwt.verify(token, refreshTokenSecret);
+}
